@@ -14,7 +14,7 @@ import (
 
 	"github.com/influxdata/kapacitor/alert"
 	"github.com/influxdata/kapacitor/keyvalue"
-	"github.com/influxdata/kapacitor/models"
+	// "github.com/influxdata/kapacitor/models"
 	"github.com/pkg/errors"
 )
 
@@ -107,11 +107,11 @@ func (s *Service) Test(options interface{}) error {
 		o.Message,
 		o.EntityID,
 		time.Now(),
-		models.Result{},
+		"",
 	)
 }
 
-func (s *Service) Alert(teams []string, recipients []string, level alert.Level, message, entityID string, t time.Time, details models.Result) error {
+func (s *Service) Alert(teams []string, recipients []string, level alert.Level, message, entityID string, t time.Time, details string) error {
 	req, err := s.preparePost(teams, recipients, level, message, entityID, t, details)
 	if err != nil {
 		return errors.Wrap(err, "failed to prepare API request")
@@ -139,7 +139,7 @@ func (s *Service) Alert(teams []string, recipients []string, level alert.Level, 
 	return nil
 }
 
-func (s *Service) preparePost(teams []string, recipients []string, level alert.Level, message, entityID string, t time.Time, details models.Result) (*http.Request, error) {
+func (s *Service) preparePost(teams []string, recipients []string, level alert.Level, message, entityID string, t time.Time, details string) (*http.Request, error) {
 	c := s.config()
 	if !c.Enabled {
 		return nil, errors.New("service is not enabled")
@@ -176,25 +176,22 @@ func (s *Service) preparePost(teams []string, recipients []string, level alert.L
 		ogData["note"] = ""
 		ogData["priority"] = priority
 
-		// Encode details as description
-		b, err := json.Marshal(details)
-		if err != nil {
-			return nil, err
+		if details != "" {
+			ogData["description"] = string(details)
 		}
-		ogData["description"] = string(b)
 
 		//Extra Fields (can be used for filtering)
 		ogDetails := make(map[string]string)
 		ogDetails["Monitoring Tool"] = "Kapacitor"
 		ogDetails["Level"] = level.String()
 
-		if len(details.Series) > 0 {
-			row := details.Series[0]
-			for k, v := range row.Tags {
-				ogDetails[k] = v
-			}
-			ogDetails["Kapacitor Task Name"] = row.Name
-		}
+		// if len(details.Series) > 0 {
+		// 	row := details.Series[0]
+		// 	for k, v := range row.Tags {
+		// 		ogDetails[k] = v
+		// 	}
+		// 	ogDetails["Kapacitor Task Name"] = row.Name
+		// }
 
 		ogData["details"] = ogDetails
 
@@ -275,7 +272,7 @@ func (h *handler) Handle(event alert.Event) {
 		event.State.Message,
 		event.State.ID,
 		event.State.Time,
-		event.Data.Result,
+		event.State.Details,
 	); err != nil {
 		h.diag.Error("failed to send event to OpsGenie", err)
 	}
